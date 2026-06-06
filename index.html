@@ -2,19 +2,336 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>我的学习笔记</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全文检索</title>
   <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/lib/themes/vue.css">
+  <style>
+    .home-search {
+      margin: 1rem 0 2rem;
+      max-width: 720px;
+    }
+
+    .home-search input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #d8dee4;
+      border-radius: 6px;
+      font-size: 16px;
+      line-height: 1.5;
+      padding: 10px 12px;
+    }
+
+    .home-search input:focus {
+      border-color: #42b983;
+      box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.16);
+      outline: none;
+    }
+
+    .home-search-results {
+      margin-top: 12px;
+    }
+
+    .home-search-result {
+      border-bottom: 1px solid #edf0f2;
+      padding: 10px 0;
+    }
+
+    .home-search-result a {
+      font-weight: 600;
+    }
+
+    .home-search-result p {
+      color: #57606a;
+      margin: 6px 0 0;
+    }
+
+    .home-search-empty {
+      color: #57606a;
+      padding: 8px 0;
+    }
+
+    .daily-log {
+      max-width: 720px;
+    }
+
+    .daily-log textarea {
+      width: 100%;
+      min-height: 240px;
+      box-sizing: border-box;
+      border: 1px solid #d8dee4;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 16px;
+      line-height: 1.6;
+      padding: 12px;
+      resize: vertical;
+    }
+
+    .daily-log textarea:focus {
+      border-color: #42b983;
+      box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.16);
+      outline: none;
+    }
+
+    .daily-log-status {
+      color: #57606a;
+      font-size: 14px;
+      min-height: 22px;
+      padding-top: 8px;
+    }
+  </style>
 </head>
 <body>
   <div id="app">加载中...</div>
   <script>
     window.$docsify = {
-      name: '学习记录',
+      name: '全文检索',
       repo: 'https://github.com/584697572/584697572.github.io', // 这里可以放你的 GitHub 链接
       loadSidebar: true, // 开启侧边栏
-      subMaxLevel: 2    // 目录层级
+      subMaxLevel: 2,    // 目录层级
+      homepageSearchPaths: [
+        'README.md',
+        'knowledge.md',
+        'school.md',
+        'personal.md',
+        'log.md'
+      ],
+      search: {
+        paths: 'auto',
+        placeholder: '搜索',
+        noData: '没有找到结果',
+        depth: 6
+      }
     }
   </script>
+  <script>
+    (function () {
+      function stripMarkdown(text) {
+        return text
+          .replace(/```[\s\S]*?```/g, ' ')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .replace(/[#>*_\-|]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function getTodayStamp() {
+        var now = new Date();
+        var year = String(now.getFullYear());
+        var month = String(now.getMonth() + 1).padStart(2, '0');
+        var day = String(now.getDate()).padStart(2, '0');
+
+        return year + month + day;
+      }
+
+      function titleFromMarkdown(path, text) {
+        var match = text.match(/^#\s+(.+)$/m);
+        if (match) {
+          return match[1].trim();
+        }
+
+        return path.replace(/\.md$/i, '').replace(/_/g, ' ');
+      }
+
+      function escapeHtml(text) {
+        return text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function toRoute(path) {
+        return path === 'README.md' ? '#/' : '#/' + path;
+      }
+
+      function makeSnippet(content, keyword) {
+        var lowerContent = content.toLowerCase();
+        var lowerKeyword = keyword.toLowerCase();
+        var index = lowerContent.indexOf(lowerKeyword);
+
+        if (index === -1) {
+          return content.slice(0, 100);
+        }
+
+        var start = Math.max(0, index - 40);
+        var end = Math.min(content.length, index + keyword.length + 60);
+        return (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
+      }
+
+      function attachHomeSearch() {
+        var input = document.getElementById('home-search-input');
+        var results = document.getElementById('home-search-results');
+
+        if (!input || !results || input.dataset.ready === 'true') {
+          return;
+        }
+
+        input.dataset.ready = 'true';
+
+        var fallbackPaths = window.$docsify.homepageSearchPaths || [];
+        var pathsPromise = fetch('/api/search-paths')
+          .then(function (response) {
+            if (!response.ok) {
+              return fallbackPaths;
+            }
+
+            return response.json().then(function (data) {
+              return data.paths && data.paths.length ? data.paths : fallbackPaths;
+            });
+          })
+          .catch(function () {
+            return fallbackPaths;
+          });
+
+        var docsPromise = pathsPromise.then(function (paths) {
+          return Promise.all(paths.map(function (path) {
+          return fetch(path)
+            .then(function (response) {
+              if (!response.ok) {
+                return null;
+              }
+
+              return response.text().then(function (text) {
+                return {
+                  path: path,
+                  title: titleFromMarkdown(path, text),
+                  content: stripMarkdown(text)
+                };
+              });
+            })
+            .catch(function () {
+              return null;
+            });
+          }));
+        }).then(function (docs) {
+          return docs.filter(Boolean);
+        });
+
+        input.addEventListener('input', function () {
+          var keyword = input.value.trim();
+
+          if (!keyword) {
+            results.innerHTML = '';
+            return;
+          }
+
+          docsPromise.then(function (docs) {
+            var lowerKeyword = keyword.toLowerCase();
+            var matches = docs.filter(function (doc) {
+              return doc.title.toLowerCase().indexOf(lowerKeyword) !== -1 ||
+                doc.content.toLowerCase().indexOf(lowerKeyword) !== -1;
+            }).slice(0, 10);
+
+            if (!matches.length) {
+              results.innerHTML = '<div class="home-search-empty">没有找到相关内容</div>';
+              return;
+            }
+
+            results.innerHTML = matches.map(function (doc) {
+              return '<div class="home-search-result">' +
+                '<a href="' + escapeHtml(toRoute(doc.path)) + '">' + escapeHtml(doc.title) + '</a>' +
+                '<p>' + escapeHtml(makeSnippet(doc.content, keyword)) + '</p>' +
+                '</div>';
+            }).join('');
+          });
+        });
+      }
+
+      function attachDailyLog() {
+        var input = document.getElementById('daily-log-input');
+        var status = document.getElementById('daily-log-status');
+
+        if (!input || !status || input.dataset.ready === 'true') {
+          return;
+        }
+
+        input.dataset.ready = 'true';
+
+        var date = getTodayStamp();
+        var filePath = 'personal_log/' + date + '.md';
+        var storageKey = 'daily-log-' + date;
+        var timer = null;
+        var localDraft = localStorage.getItem(storageKey) || '';
+
+        input.value = localDraft;
+        status.textContent = '将保存到 ' + filePath;
+
+        function setStatus(message) {
+          status.textContent = message;
+        }
+
+        function saveNow() {
+          var content = input.value;
+          localStorage.setItem(storageKey, content);
+          setStatus('保存中...');
+
+          fetch('/api/personal-log?date=' + encodeURIComponent(date), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              content: content
+            })
+          })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('save failed');
+              }
+
+              return response.json();
+            })
+            .then(function () {
+              setStatus('已保存到 ' + filePath);
+            })
+            .catch(function () {
+              setStatus('已暂存在浏览器，启动本地写入服务后会保存到 ' + filePath);
+            });
+        }
+
+        function scheduleSave() {
+          clearTimeout(timer);
+          timer = setTimeout(saveNow, 600);
+        }
+
+        fetch('/api/personal-log?date=' + encodeURIComponent(date))
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('load failed');
+            }
+
+            return response.json();
+          })
+          .then(function (data) {
+            if (!localDraft && data.content) {
+              input.value = data.content;
+              localStorage.setItem(storageKey, data.content);
+            } else if (localDraft && localDraft !== data.content) {
+              scheduleSave();
+            }
+
+            setStatus('将保存到 ' + filePath);
+          })
+          .catch(function () {
+            setStatus('本地写入服务未连接，当前内容会先暂存在浏览器');
+          });
+
+        input.addEventListener('input', scheduleSave);
+      }
+
+      window.$docsify.plugins = [].concat(function (hook) {
+        hook.doneEach(function () {
+          attachHomeSearch();
+          attachDailyLog();
+        });
+      }, window.$docsify.plugins || []);
+    })();
+  </script>
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
 </body>
 </html>
