@@ -6,6 +6,168 @@
   <title>全文检索</title>
   <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/lib/themes/vue.css">
   <style>
+    .file-list {
+      max-width: 760px;
+      margin: 1rem 0 2rem;
+    }
+
+    .file-list-item {
+      align-items: center;
+      border-bottom: 1px solid #edf0f2;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+
+    .file-list-main {
+      min-width: 0;
+    }
+
+    .file-list-main a {
+      font-weight: 600;
+    }
+
+    .file-list-main span {
+      color: #57606a;
+      display: block;
+      font-size: 14px;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+
+    .file-list-actions {
+      flex: 0 0 auto;
+    }
+
+    .file-list-empty,
+    .file-status {
+      color: #57606a;
+      font-size: 14px;
+    }
+
+    .paper-tools {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 1rem 0;
+    }
+
+    .upload-button,
+    .file-list-actions button,
+    .editor-actions button {
+      background: #42b983;
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      display: inline-block;
+      font: inherit;
+      line-height: 1.4;
+      padding: 7px 12px;
+    }
+
+    .upload-button input {
+      display: none;
+    }
+
+    .markdown-editor {
+      max-width: 760px;
+      margin: 1.5rem 0 2rem;
+    }
+
+    .markdown-editor textarea {
+      box-sizing: border-box;
+      min-height: 360px;
+      width: 100%;
+      border: 1px solid #d8dee4;
+      border-radius: 6px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 12px;
+      resize: vertical;
+    }
+
+    .editor-actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .sidebar-nav li.has-children > ul {
+      display: none;
+    }
+
+    .sidebar-nav li.has-children.is-open > ul {
+      display: block;
+    }
+
+    .sidebar-nav li.has-children > a {
+      align-items: center;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .sidebar-nav li.has-children > a::after {
+      content: '>';
+      color: #8c959f;
+      font-size: 12px;
+      margin-left: 8px;
+      transition: transform 0.18s ease;
+    }
+
+    .sidebar-nav li.has-children.is-open > a::after {
+      transform: rotate(90deg);
+    }
+
+    .weekly-log-list {
+      max-width: 720px;
+      margin: 1rem 0 2rem;
+    }
+
+    .weekly-log-item {
+      border-bottom: 1px solid #edf0f2;
+      display: block;
+      padding: 10px 0;
+    }
+
+    .weekly-log-item a {
+      font-weight: 600;
+    }
+
+    .weekly-log-item span {
+      color: #57606a;
+      display: block;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .weekly-log-empty {
+      color: #57606a;
+      padding: 8px 0;
+    }
+
+    .date-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0 0 1.5rem;
+    }
+
+    .date-summary span {
+      border: 1px solid #d8dee4;
+      border-radius: 6px;
+      color: #24292f;
+      font-size: 15px;
+      line-height: 1.4;
+      padding: 6px 10px;
+    }
+
     .home-search {
       margin: 1rem 0 2rem;
       max-width: 720px;
@@ -85,23 +247,22 @@
   <div id="app">加载中...</div>
   <script>
     window.$docsify = {
-      name: '全文检索',
+      name: '',
       repo: 'https://github.com/584697572/584697572.github.io', // 这里可以放你的 GitHub 链接
       loadSidebar: true, // 开启侧边栏
-      subMaxLevel: 2,    // 目录层级
+      subMaxLevel: 0,    // 不在侧边栏显示页面内标题
       homepageSearchPaths: [
         'README.md',
         'knowledge.md',
         'school.md',
+        'papers.md',
+        'experiments.md',
         'personal.md',
+        'leetcode.md',
+        'projects.md',
+        'interview.md',
         'log.md'
-      ],
-      search: {
-        paths: 'auto',
-        placeholder: '搜索',
-        noData: '没有找到结果',
-        depth: 6
-      }
+      ]
     }
   </script>
   <script>
@@ -117,11 +278,135 @@
           .trim();
       }
 
-      function getTodayStamp() {
+      function attachCollapsibleSidebar() {
+        var sidebar = document.querySelector('.sidebar-nav');
+        var storageKey = 'sidebar-open-groups';
+
+        if (!sidebar) {
+          return;
+        }
+
+        function readOpenGroups() {
+          try {
+            return JSON.parse(localStorage.getItem(storageKey) || '{}');
+          } catch (error) {
+            return {};
+          }
+        }
+
+        function writeOpenGroup(key, isOpen) {
+          var openGroups = readOpenGroups();
+          openGroups[key] = isOpen;
+          localStorage.setItem(storageKey, JSON.stringify(openGroups));
+        }
+
+        function normalizeRoute(value) {
+          var route = value || '';
+          var hashIndex = route.indexOf('#');
+
+          if (hashIndex !== -1) {
+            route = route.slice(hashIndex + 1);
+          }
+
+          return route
+            .replace(/^\/?/, '')
+            .replace(/\.md$/i, '')
+            .replace(/^$/, 'README');
+        }
+
+        function hasActiveChild(childList) {
+          var currentRoute = normalizeRoute(window.location.hash);
+          var childLinks = childList.querySelectorAll('a');
+
+          return Array.prototype.some.call(childLinks, function (childLink) {
+            var childRoute = normalizeRoute(childLink.getAttribute('href') || childLink.href);
+            return childLink.classList.contains('active') || childRoute === currentRoute;
+          });
+        }
+
+        var openGroups = readOpenGroups();
+        var items = sidebar.querySelectorAll('li');
+        items.forEach(function (item) {
+          var childList = item.querySelector(':scope > ul');
+          var link = item.querySelector(':scope > a');
+
+          if (!childList || !link) {
+            return;
+          }
+
+          var key = normalizeRoute(link.getAttribute('href') || link.href || link.textContent.trim());
+          var shouldOpen = openGroups[key] === true || hasActiveChild(childList);
+
+          item.classList.add('has-children');
+          item.classList.toggle('is-open', shouldOpen);
+
+          if (item.dataset.collapsibleReady === 'true') {
+            return;
+          }
+
+          item.dataset.collapsibleReady = 'true';
+
+          link.addEventListener('click', function (event) {
+            event.preventDefault();
+            var isOpen = !item.classList.contains('is-open');
+            item.classList.toggle('is-open', isOpen);
+            writeOpenGroup(key, isOpen);
+          });
+
+          childList.querySelectorAll('a').forEach(function (childLink) {
+            childLink.addEventListener('click', function () {
+              item.classList.add('is-open');
+              writeOpenGroup(key, true);
+            });
+          });
+        });
+      }
+      function formatDateInfo(date) {
+        var year = date.getFullYear();
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        var weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+        return {
+          date: year + '年' + month + '月' + day + '日',
+          weekday: weekdays[date.getDay()],
+          weekNumber: getWeekNumber(date)
+        };
+      }
+
+      function getWeekNumber(date) {
+        var start = new Date(date.getFullYear(), 0, 1);
+        var dayOfYear = Math.floor((date - start) / 86400000) + 1;
+        var startWeekday = start.getDay() || 7;
+
+        return Math.ceil((dayOfYear + startWeekday - 1) / 7);
+      }
+
+      function attachDateSummary() {
+        var dateEl = document.getElementById('current-date');
+        var weekdayEl = document.getElementById('current-weekday');
+        var weekNumberEl = document.getElementById('current-week-number');
+
+        if (!dateEl || !weekdayEl || !weekNumberEl) {
+          return;
+        }
+
+        var info = formatDateInfo(new Date());
+        dateEl.textContent = info.date;
+        weekdayEl.textContent = info.weekday;
+        weekNumberEl.textContent = '今年第' + info.weekNumber + '周';
+      }
+      function getWeekStamp() {
         var now = new Date();
-        var year = String(now.getFullYear());
-        var month = String(now.getMonth() + 1).padStart(2, '0');
-        var day = String(now.getDate()).padStart(2, '0');
+        var weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var weekday = weekStart.getDay();
+        var offset = weekday === 0 ? -6 : 1 - weekday;
+
+        weekStart.setDate(weekStart.getDate() + offset);
+
+        var year = String(weekStart.getFullYear());
+        var month = String(weekStart.getMonth() + 1).padStart(2, '0');
+        var day = String(weekStart.getDate()).padStart(2, '0');
 
         return year + month + day;
       }
@@ -173,18 +458,50 @@
         input.dataset.ready = 'true';
 
         var fallbackPaths = window.$docsify.homepageSearchPaths || [];
+
+        function uniquePaths(paths) {
+          return paths.filter(function (path, index) {
+            return path && paths.indexOf(path) === index;
+          });
+        }
+
+        function loadManifestPaths(url, key) {
+          return fetch(url)
+            .then(function (response) {
+              if (!response.ok) {
+                return [];
+              }
+
+              return response.json().then(function (data) {
+                return (data[key] || []).map(function (item) {
+                  return item.path;
+                });
+              });
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+
+        var staticPathsPromise = Promise.all([
+          loadManifestPaths('personal_log/index.json', 'logs'),
+          loadManifestPaths('paper_files/index.json', 'papers')
+        ]).then(function (groups) {
+          return uniquePaths(fallbackPaths.concat(groups[0], groups[1]));
+        });
+
         var pathsPromise = fetch('/api/search-paths')
           .then(function (response) {
             if (!response.ok) {
-              return fallbackPaths;
+              return staticPathsPromise;
             }
 
             return response.json().then(function (data) {
-              return data.paths && data.paths.length ? data.paths : fallbackPaths;
+              return data.paths && data.paths.length ? data.paths : staticPathsPromise;
             });
           })
           .catch(function () {
-            return fallbackPaths;
+            return staticPathsPromise;
           });
 
         var docsPromise = pathsPromise.then(function (paths) {
@@ -241,6 +558,284 @@
         });
       }
 
+      function formatTimestamp(value) {
+        if (!value) {
+          return '未知';
+        }
+
+        var timestamp = Number(value);
+        var date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+        var year = date.getFullYear();
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        var hour = String(date.getHours()).padStart(2, '0');
+        var minute = String(date.getMinutes()).padStart(2, '0');
+
+        return year + '-' + month + '-' + day + ' ' + hour + ':' + minute;
+      }
+
+      function formatWeeklyLogTitle(log) {
+        var date = log.date || '';
+        if (/^\d{8}$/.test(date)) {
+          return date.slice(0, 4) + '年' + date.slice(4, 6) + '月' + date.slice(6, 8) + '日所在周';
+        }
+
+        return log.path || '未命名日志';
+      }
+
+      function loadWeeklyLogData() {
+        return fetch('/api/personal-log-list')
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('api unavailable');
+            }
+
+            return response.json();
+          })
+          .catch(function () {
+            return fetch('personal_log/index.json')
+              .then(function (response) {
+                if (!response.ok) {
+                  return { logs: [] };
+                }
+
+                return response.json();
+              });
+          });
+      }
+
+      function attachWeeklyLogList() {
+        var list = document.getElementById('weekly-log-list');
+
+        if (!list || list.dataset.ready === 'true') {
+          return;
+        }
+
+        list.dataset.ready = 'true';
+
+        loadWeeklyLogData()
+          .then(function (data) {
+            var logs = data.logs || [];
+
+            if (!logs.length) {
+              list.innerHTML = '<div class="file-list-empty">还没有每周日志</div>';
+              return;
+            }
+
+            list.innerHTML = logs.map(function (log) {
+              return '<div class="file-list-item">' +
+                '<div class="file-list-main">' +
+                '<a href="' + escapeHtml(toRoute(log.path)) + '">' + escapeHtml(formatWeeklyLogTitle(log)) + '</a>' +
+                '<span>' + escapeHtml(log.path) + ' · 最后编辑：' + escapeHtml(formatTimestamp(log.updated)) + '</span>' +
+                '</div>' +
+                '</div>';
+            }).join('');
+          })
+          .catch(function () {
+            list.innerHTML = '<div class="file-list-empty">日志列表读取失败</div>';
+          });
+      }
+
+      function formatPaperTitle(paper) {
+        return paper.title || paper.name || paper.path || '未命名论文';
+      }
+
+      function loadPaperData() {
+        return fetch('/api/paper-list')
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('api unavailable');
+            }
+
+            return response.json();
+          })
+          .catch(function () {
+            return fetch('paper_files/index.json')
+              .then(function (response) {
+                if (!response.ok) {
+                  return { papers: [] };
+                }
+
+                return response.json();
+              });
+          });
+      }
+
+      function renderPaperList(list, papers) {
+        if (!papers.length) {
+          list.innerHTML = '<div class="file-list-empty">还没有上传论文</div>';
+          return;
+        }
+
+        list.innerHTML = papers.map(function (paper) {
+          return '<div class="file-list-item">' +
+            '<div class="file-list-main">' +
+            '<a href="' + escapeHtml(toRoute(paper.path)) + '">' + escapeHtml(formatPaperTitle(paper)) + '</a>' +
+            '<span>上传：' + escapeHtml(formatTimestamp(paper.uploaded)) + ' · 最后编辑：' + escapeHtml(formatTimestamp(paper.updated)) + '</span>' +
+            '</div>' +
+            '<div class="file-list-actions"><button type="button" data-edit-path="' + escapeHtml(paper.path || '') + '" data-edit-title="' + escapeHtml(formatPaperTitle(paper)) + '">编辑</button></div>' +
+            '</div>';
+        }).join('');
+
+        list.querySelectorAll('[data-edit-path]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            openPaperEditor(button.dataset.editPath, button.dataset.editTitle || '编辑论文');
+          });
+        });
+      }
+
+      function refreshPaperList(list) {
+        return loadPaperData()
+          .then(function (data) {
+            renderPaperList(list, data.papers || []);
+          })
+          .catch(function () {
+            list.innerHTML = '<div class="file-list-empty">论文列表读取失败</div>';
+          });
+      }
+
+      function openPaperEditor(path, title) {
+        var editor = document.getElementById('paper-editor');
+        var titleEl = document.getElementById('paper-editor-title');
+        var input = document.getElementById('paper-editor-input');
+        var status = document.getElementById('paper-editor-status');
+
+        if (!editor || !titleEl || !input || !status) {
+          return;
+        }
+
+        status.textContent = '正在读取...';
+        fetch('/api/markdown-file?path=' + encodeURIComponent(path))
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('load failed');
+            }
+
+            return response.json();
+          })
+          .then(function (data) {
+            editor.hidden = false;
+            editor.dataset.path = data.path;
+            titleEl.textContent = title;
+            input.value = data.content || '';
+            status.textContent = '正在编辑 ' + data.path;
+            input.focus();
+          })
+          .catch(function () {
+            status.textContent = '编辑需要启动本地服务';
+          });
+      }
+
+      function attachPaperPage() {
+        var list = document.getElementById('paper-list');
+        var upload = document.getElementById('paper-upload-input');
+        var uploadStatus = document.getElementById('paper-upload-status');
+        var editor = document.getElementById('paper-editor');
+        var editorInput = document.getElementById('paper-editor-input');
+        var saveButton = document.getElementById('paper-editor-save');
+        var closeButton = document.getElementById('paper-editor-close');
+        var editorStatus = document.getElementById('paper-editor-status');
+
+        if (list && list.dataset.ready !== 'true') {
+          list.dataset.ready = 'true';
+          refreshPaperList(list);
+        }
+
+        if (upload && upload.dataset.ready !== 'true') {
+          upload.dataset.ready = 'true';
+          upload.addEventListener('change', function () {
+            var file = upload.files && upload.files[0];
+
+            if (!file) {
+              return;
+            }
+            if (!/\.md$/i.test(file.name)) {
+              uploadStatus.textContent = '请选择 Markdown 文件';
+              upload.value = '';
+              return;
+            }
+
+            uploadStatus.textContent = '正在上传...';
+            file.text()
+              .then(function (content) {
+                return fetch('/api/paper-upload', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    filename: file.name,
+                    content: content
+                  })
+                });
+              })
+              .then(function (response) {
+                if (!response.ok) {
+                  throw new Error('upload failed');
+                }
+
+                return response.json();
+              })
+              .then(function () {
+                uploadStatus.textContent = '已上传';
+                upload.value = '';
+                if (list) {
+                  refreshPaperList(list);
+                }
+              })
+              .catch(function () {
+                uploadStatus.textContent = '上传需要启动本地服务';
+              });
+          });
+        }
+
+        if (saveButton && saveButton.dataset.ready !== 'true') {
+          saveButton.dataset.ready = 'true';
+          saveButton.addEventListener('click', function () {
+            if (!editor || !editor.dataset.path) {
+              return;
+            }
+
+            editorStatus.textContent = '保存中...';
+            fetch('/api/markdown-file', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                path: editor.dataset.path,
+                content: editorInput.value
+              })
+            })
+              .then(function (response) {
+                if (!response.ok) {
+                  throw new Error('save failed');
+                }
+
+                return response.json();
+              })
+              .then(function () {
+                editorStatus.textContent = '已保存';
+                if (list) {
+                  refreshPaperList(list);
+                }
+              })
+              .catch(function () {
+                editorStatus.textContent = '保存需要启动本地服务';
+              });
+          });
+        }
+
+        if (closeButton && closeButton.dataset.ready !== 'true') {
+          closeButton.dataset.ready = 'true';
+          closeButton.addEventListener('click', function () {
+            if (editor) {
+              editor.hidden = true;
+            }
+          });
+        }
+      }
+
       function attachDailyLog() {
         var input = document.getElementById('daily-log-input');
         var status = document.getElementById('daily-log-status');
@@ -251,14 +846,14 @@
 
         input.dataset.ready = 'true';
 
-        var date = getTodayStamp();
+        var date = getWeekStamp();
         var filePath = 'personal_log/' + date + '.md';
-        var storageKey = 'daily-log-' + date;
+        var storageKey = 'weekly-log-' + date;
         var timer = null;
         var localDraft = localStorage.getItem(storageKey) || '';
 
         input.value = localDraft;
-        status.textContent = '将保存到 ' + filePath;
+        status.textContent = '本周内容将保存到 ' + filePath;
 
         function setStatus(message) {
           status.textContent = message;
@@ -314,10 +909,10 @@
               scheduleSave();
             }
 
-            setStatus('将保存到 ' + filePath);
+            setStatus('本周内容将保存到 ' + filePath);
           })
           .catch(function () {
-            setStatus('本地写入服务未连接，当前内容会先暂存在浏览器');
+            setStatus('本地写入服务未连接，本周内容会先暂存在浏览器');
           });
 
         input.addEventListener('input', scheduleSave);
@@ -325,13 +920,16 @@
 
       window.$docsify.plugins = [].concat(function (hook) {
         hook.doneEach(function () {
+          attachCollapsibleSidebar();
+          attachDateSummary();
           attachHomeSearch();
+          attachWeeklyLogList();
+          attachPaperPage();
           attachDailyLog();
         });
       }, window.$docsify.plugins || []);
     })();
   </script>
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
 </body>
 </html>
