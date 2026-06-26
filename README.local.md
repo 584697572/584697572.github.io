@@ -4,6 +4,13 @@
   <span id="current-week-number"></span>
 </div>
 
+# 本周
+
+<div class="daily-log">
+  <textarea id="daily-log-input" placeholder="记录本周发生的事..." autocomplete="off"></textarea>
+  <div id="daily-log-status" class="daily-log-status"></div>
+</div>
+
 # 检索
 
 <div class="home-search">

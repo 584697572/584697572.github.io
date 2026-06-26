@@ -241,32 +241,79 @@
       min-height: 22px;
       padding-top: 8px;
     }
+    .is-public-site .local-only {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
   <div id="app">加载中...</div>
   <script>
+    (function () {
+      var host = window.location.hostname;
+      var isLocal = window.location.protocol === 'file:' ||
+        host === '' ||
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host === '[::1]';
+
+      window.__BLOG_IS_LOCAL__ = isLocal;
+      document.documentElement.classList.toggle('is-local-site', isLocal);
+      document.documentElement.classList.toggle('is-public-site', !isLocal);
+    })();
+  </script>
+  <script>
+    var homepageSearchPaths = [
+      window.__BLOG_IS_LOCAL__ ? 'README.local.md' : 'README.md',
+      'knowledge.md',
+      'school.md',
+      'papers.md',
+      'experiments.md',
+      'personal.md',
+      'leetcode.md',
+      'projects.md',
+      'interview.md'
+    ];
+
+    if (window.__BLOG_IS_LOCAL__) {
+      homepageSearchPaths.push('log.md');
+    }
+
     window.$docsify = {
       name: '',
-      repo: 'https://github.com/584697572/584697572.github.io', // 这里可以放你的 GitHub 链接
-      loadSidebar: true, // 开启侧边栏
-      subMaxLevel: 0,    // 不在侧边栏显示页面内标题
-      homepageSearchPaths: [
-        'README.md',
-        'knowledge.md',
-        'school.md',
-        'papers.md',
-        'experiments.md',
-        'personal.md',
-        'leetcode.md',
-        'projects.md',
-        'interview.md',
-        'log.md'
-      ]
+      repo: 'https://github.com/584697572/584697572.github.io',
+      loadSidebar: window.__BLOG_IS_LOCAL__ ? '_sidebar.local.md' : true,
+      homepage: window.__BLOG_IS_LOCAL__ ? 'README.local.md' : 'README.md',
+      subMaxLevel: 0,
+      homepageSearchPaths: homepageSearchPaths
     }
   </script>
   <script>
     (function () {
+      function isLocalSite() {
+        return window.__BLOG_IS_LOCAL__ === true;
+      }
+
+      function isPersonalLogPath(path) {
+        var value = (path || '').replace(/^\/+/, '').toLowerCase();
+        return value === 'log.md' ||
+          value === 'log' ||
+          value === 'readme.local.md' ||
+          value === 'readme.local' ||
+          value.indexOf('personal_log/') === 0;
+      }
+
+      function filterPublicPaths(paths) {
+        if (isLocalSite()) {
+          return paths;
+        }
+
+        return paths.filter(function (path) {
+          return !isPersonalLogPath(path);
+        });
+      }
+
       function stripMarkdown(text) {
         return text
           .replace(/```[\s\S]*?```/g, ' ')
@@ -314,6 +361,13 @@
             .replace(/^$/, 'README');
         }
 
+        function isLocalOnlyRoute(value) {
+          var route = normalizeRoute(value).toLowerCase();
+          return route === 'log' ||
+            route === 'readme.local' ||
+            route.indexOf('personal_log/') === 0;
+        }
+
         function hasActiveChild(childList) {
           var currentRoute = normalizeRoute(window.location.hash);
           var childLinks = childList.querySelectorAll('a');
@@ -324,11 +378,17 @@
           });
         }
 
+        function directChildByTag(item, tagName) {
+          return Array.prototype.find.call(item.children, function (child) {
+            return child.tagName && child.tagName.toLowerCase() === tagName;
+          });
+        }
+
         var openGroups = readOpenGroups();
         var items = sidebar.querySelectorAll('li');
         items.forEach(function (item) {
-          var childList = item.querySelector(':scope > ul');
-          var link = item.querySelector(':scope > a');
+          var childList = directChildByTag(item, 'ul');
+          var link = directChildByTag(item, 'a');
 
           if (!childList || !link) {
             return;
@@ -430,7 +490,11 @@
       }
 
       function toRoute(path) {
-        return path === 'README.md' ? '#/' : '#/' + path;
+        if (path === 'README.md' || (isLocalSite() && path === 'README.local.md')) {
+          return '#/';
+        }
+
+        return '#/' + path;
       }
 
       function makeSnippet(content, keyword) {
@@ -460,8 +524,9 @@
         var fallbackPaths = window.$docsify.homepageSearchPaths || [];
 
         function uniquePaths(paths) {
-          return paths.filter(function (path, index) {
-            return path && paths.indexOf(path) === index;
+          var filteredPaths = filterPublicPaths(paths);
+          return filteredPaths.filter(function (path, index) {
+            return path && filteredPaths.indexOf(path) === index;
           });
         }
 
@@ -483,8 +548,9 @@
             });
         }
 
+        var logManifestPromise = isLocalSite() ? loadManifestPaths('personal_log/index.json', 'logs') : Promise.resolve([]);
         var staticPathsPromise = Promise.all([
-          loadManifestPaths('personal_log/index.json', 'logs'),
+          logManifestPromise,
           loadManifestPaths('paper_files/index.json', 'papers')
         ]).then(function (groups) {
           return uniquePaths(fallbackPaths.concat(groups[0], groups[1]));
@@ -497,7 +563,7 @@
             }
 
             return response.json().then(function (data) {
-              return data.paths && data.paths.length ? data.paths : staticPathsPromise;
+              return data.paths && data.paths.length ? uniquePaths(data.paths) : staticPathsPromise;
             });
           })
           .catch(function () {
@@ -505,6 +571,7 @@
           });
 
         var docsPromise = pathsPromise.then(function (paths) {
+          paths = uniquePaths(paths);
           return Promise.all(paths.map(function (path) {
           return fetch(path)
             .then(function (response) {
@@ -608,6 +675,11 @@
         var list = document.getElementById('weekly-log-list');
 
         if (!list || list.dataset.ready === 'true') {
+          return;
+        }
+
+        if (!isLocalSite()) {
+          list.innerHTML = '';
           return;
         }
 
@@ -837,6 +909,10 @@
       }
 
       function attachDailyLog() {
+        if (!isLocalSite()) {
+          return;
+        }
+
         var input = document.getElementById('daily-log-input');
         var status = document.getElementById('daily-log-status');
 
@@ -918,14 +994,32 @@
         input.addEventListener('input', scheduleSave);
       }
 
+      function safeAttach(fn) {
+        try {
+          fn();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
       window.$docsify.plugins = [].concat(function (hook) {
+        hook.beforeEach(function (content, next) {
+          if (!isLocalSite() && isLocalOnlyRoute(window.location.hash)) {
+            window.location.hash = '/';
+            next('');
+            return;
+          }
+
+          next(content);
+        });
+
         hook.doneEach(function () {
-          attachCollapsibleSidebar();
-          attachDateSummary();
-          attachHomeSearch();
-          attachWeeklyLogList();
-          attachPaperPage();
-          attachDailyLog();
+          safeAttach(attachCollapsibleSidebar);
+          safeAttach(attachDateSummary);
+          safeAttach(attachHomeSearch);
+          safeAttach(attachWeeklyLogList);
+          safeAttach(attachPaperPage);
+          safeAttach(attachDailyLog);
         });
       }, window.$docsify.plugins || []);
     })();

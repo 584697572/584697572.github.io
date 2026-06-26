@@ -289,9 +289,11 @@ class BlogHandler(SimpleHTTPRequestHandler):
 
         for line in normalized.split("\n"):
             clean = re.sub(r"[ \t]+$", "", line)
-            lines.append(clean + "  " if clean else "")
+            if clean:
+                lines.append(clean + "  ")
 
         return "\n".join(lines)
+
     def get_date(self, parsed):
         query = parse_qs(parsed.query)
         date = query.get("date", [""])[0]

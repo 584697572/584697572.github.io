@@ -7,3 +7,4 @@
   * [LeetCode](leetcode.md)
   * [项目](projects.md)
   * [八股](interview.md)
+* [个人日志](log.md)

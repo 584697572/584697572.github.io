@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+personal_log/*.md
+personal_log/index.json
